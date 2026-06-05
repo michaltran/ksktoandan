@@ -423,6 +423,20 @@ const mau9: FormDef = {
 
 export const FORMS: FormDef[] = [mau1, mau2, mau3, mau4, mau5, mau6, mau7, mau8, mau9];
 
+// Danh sách gọn để hiển thị bộ chọn nhanh mẫu (tránh đưa toàn bộ định nghĩa vào client)
+export interface FormOption {
+  id: string;
+  code: string;
+  name: string;
+  ageRange: string;
+}
+export const FORM_OPTIONS: FormOption[] = FORMS.map((f) => ({
+  id: f.id,
+  code: f.code,
+  name: f.name,
+  ageRange: f.ageRange,
+}));
+
 export function getForm(id: string): FormDef | undefined {
   return FORMS.find((f) => f.id === id);
 }

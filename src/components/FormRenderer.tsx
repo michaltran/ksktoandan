@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { FormDef, Field, Section, RecordValues } from "@/lib/forms/schema";
+import type { FormOption } from "@/lib/forms/definitions";
 
 // Tính giá trị mặc định: radio có "normal" -> chọn sẵn giá trị bình thường
 function buildDefaults(form: FormDef): RecordValues {
@@ -22,17 +23,28 @@ export default function FormRenderer({
   form,
   initialValues,
   recordId,
+  formList = [],
 }: {
   form: FormDef;
   initialValues?: RecordValues;
   recordId?: number;
+  formList?: FormOption[];
 }) {
   const router = useRouter();
   const defaults = useMemo(() => buildDefaults(form), [form]);
   const [values, setValues] = useState<RecordValues>({ ...defaults, ...(initialValues ?? {}) });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [savedCount, setSavedCount] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Đưa con trỏ về trường nhập đầu tiên
+  function focusFirst() {
+    setTimeout(() => {
+      const el = containerRef.current?.querySelector<HTMLElement>("[data-kbd]");
+      el?.focus();
+    }, 40);
+  }
 
   function set(key: string, val: string | string[] | boolean | null) {
     setValues((prev) => ({ ...prev, [key]: val }));
@@ -70,7 +82,8 @@ export default function FormRenderer({
     });
   }
 
-  async function save() {
+  // thenNew = true: lưu xong mở phiếu trắng mới để nhập tiếp (chỉ với hồ sơ mới)
+  async function save(thenNew: boolean) {
     setSaving(true);
     setMsg(null);
     try {
@@ -81,9 +94,20 @@ export default function FormRenderer({
       });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || "Lỗi lưu");
-      setMsg("Đã lưu thành công ✓");
-      router.push("/records?form=" + form.id);
-      router.refresh();
+
+      if (!recordId && thenNew) {
+        // Tự tạo phiếu mới: reset về mặc định, cuộn lên đầu, focus trường đầu
+        setValues({ ...defaults });
+        setSavedCount((c) => c + 1);
+        setMsg("Đã lưu ✓ — nhập hồ sơ tiếp theo");
+        setSaving(false);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        focusFirst();
+      } else {
+        setMsg("Đã lưu thành công ✓");
+        router.push("/records?form=" + form.id);
+        router.refresh();
+      }
     } catch (e) {
       setMsg("Lỗi: " + String(e));
       setSaving(false);
@@ -92,11 +116,31 @@ export default function FormRenderer({
 
   return (
     <div className="pb-24" ref={containerRef}>
-      <div className="mb-3">
-        <h1 className="text-xl font-bold text-slate-900">
-          {form.code} — {form.name}
-        </h1>
-        <p className="text-sm text-slate-500">Độ tuổi: {form.ageRange}</p>
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">
+            {form.code} — {form.name}
+          </h1>
+          <p className="text-sm text-slate-500">Độ tuổi: {form.ageRange}</p>
+        </div>
+        {formList.length > 0 && (
+          <div className="shrink-0">
+            <label className="block text-xs text-slate-500 mb-1">Chọn nhanh mẫu để nhập</label>
+            <select
+              className="text-input py-1.5"
+              value={form.id}
+              onChange={(e) => {
+                if (e.target.value !== form.id) router.push(`/forms/${e.target.value}`);
+              }}
+            >
+              {formList.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.code} — {f.ageRange}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Hướng dẫn phím tắt để nhập nhanh */}
@@ -137,21 +181,43 @@ export default function FormRenderer({
               </span>
             </div>
           )}
-          {msg && <span className="text-sm text-slate-600">{msg}</span>}
+          {msg && <span className="text-sm font-medium text-emerald-700">{msg}</span>}
+          {savedCount > 0 && (
+            <span className="text-xs text-slate-500">Đã lưu {savedCount} hồ sơ trong phiên này</span>
+          )}
           <div className="ml-auto flex gap-2">
             <button
-              onClick={() => router.push("/records")}
+              onClick={() => router.push("/records?form=" + form.id)}
               className="px-4 py-2 rounded-md border border-slate-300 text-sm"
             >
-              Hủy
+              {recordId ? "Hủy" : "Xem danh sách"}
             </button>
-            <button
-              onClick={save}
-              disabled={saving}
-              className="px-5 py-2 rounded-md bg-brand-600 text-white text-sm font-medium disabled:opacity-60"
-            >
-              {saving ? "Đang lưu..." : recordId ? "Cập nhật" : "Lưu hồ sơ"}
-            </button>
+            {recordId ? (
+              <button
+                onClick={() => save(false)}
+                disabled={saving}
+                className="px-5 py-2 rounded-md bg-brand-600 text-white text-sm font-medium disabled:opacity-60"
+              >
+                {saving ? "Đang lưu..." : "Cập nhật"}
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => save(false)}
+                  disabled={saving}
+                  className="px-4 py-2 rounded-md border border-brand-600 text-brand-700 text-sm font-medium disabled:opacity-60"
+                >
+                  Lưu & xong
+                </button>
+                <button
+                  onClick={() => save(true)}
+                  disabled={saving}
+                  className="px-5 py-2 rounded-md bg-brand-600 text-white text-sm font-medium disabled:opacity-60"
+                >
+                  {saving ? "Đang lưu..." : "Lưu & nhập tiếp →"}
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
