@@ -1,0 +1,152 @@
+import { neon } from "@neondatabase/serverless";
+import fs from "fs";
+import path from "path";
+
+// ============================================================
+// Lớp truy cập dữ liệu.
+// - Nếu có biến môi trường DATABASE_URL (Neon): dùng Postgres.
+// - Nếu chưa cấu hình (chạy thử local): dùng file JSON tạm trong .data/
+//   (chỉ phục vụ chạy thử; trên Vercel bắt buộc dùng Neon).
+// ============================================================
+
+export interface KskRecord {
+  id: number;
+  form_id: string;
+  child_name: string;
+  dob: string | null;
+  mchat_score: number | null;
+  values: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+const useNeon = !!process.env.DATABASE_URL;
+const sql = useNeon ? neon(process.env.DATABASE_URL!) : null;
+
+// ---------- Khởi tạo bảng ----------
+let initialized = false;
+export async function ensureSchema(): Promise<void> {
+  if (!useNeon) return;
+  if (initialized) return;
+  await sql!`
+    CREATE TABLE IF NOT EXISTS ksk_records (
+      id SERIAL PRIMARY KEY,
+      form_id TEXT NOT NULL,
+      child_name TEXT NOT NULL DEFAULT '',
+      dob TEXT,
+      mchat_score INTEGER,
+      values JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `;
+  initialized = true;
+}
+
+// ---------- Fallback file local ----------
+const dataDir = path.join(process.cwd(), ".data");
+const dataFile = path.join(dataDir, "records.json");
+
+function readLocal(): KskRecord[] {
+  try {
+    if (!fs.existsSync(dataFile)) return [];
+    return JSON.parse(fs.readFileSync(dataFile, "utf-8")) as KskRecord[];
+  } catch {
+    return [];
+  }
+}
+function writeLocal(rows: KskRecord[]): void {
+  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(dataFile, JSON.stringify(rows, null, 2), "utf-8");
+}
+
+// ============================================================
+// API dữ liệu
+// ============================================================
+export async function listRecords(formId?: string): Promise<KskRecord[]> {
+  await ensureSchema();
+  if (useNeon) {
+    const rows = formId
+      ? await sql!`SELECT * FROM ksk_records WHERE form_id = ${formId} ORDER BY id DESC`
+      : await sql!`SELECT * FROM ksk_records ORDER BY id DESC`;
+    return rows as KskRecord[];
+  }
+  let rows = readLocal().sort((a, b) => b.id - a.id);
+  if (formId) rows = rows.filter((r) => r.form_id === formId);
+  return rows;
+}
+
+export async function getRecord(id: number): Promise<KskRecord | null> {
+  await ensureSchema();
+  if (useNeon) {
+    const rows = (await sql!`SELECT * FROM ksk_records WHERE id = ${id}`) as KskRecord[];
+    return rows[0] ?? null;
+  }
+  return readLocal().find((r) => r.id === id) ?? null;
+}
+
+interface UpsertInput {
+  form_id: string;
+  child_name: string;
+  dob: string | null;
+  mchat_score: number | null;
+  values: Record<string, unknown>;
+}
+
+export async function createRecord(input: UpsertInput): Promise<KskRecord> {
+  await ensureSchema();
+  if (useNeon) {
+    const rows = (await sql!`
+      INSERT INTO ksk_records (form_id, child_name, dob, mchat_score, values)
+      VALUES (${input.form_id}, ${input.child_name}, ${input.dob}, ${input.mchat_score}, ${JSON.stringify(
+      input.values
+    )}::jsonb)
+      RETURNING *;
+    `) as KskRecord[];
+    return rows[0];
+  }
+  const rows = readLocal();
+  const id = rows.reduce((m, r) => Math.max(m, r.id), 0) + 1;
+  const now = new Date().toISOString();
+  const rec: KskRecord = { id, ...input, created_at: now, updated_at: now };
+  rows.push(rec);
+  writeLocal(rows);
+  return rec;
+}
+
+export async function updateRecord(id: number, input: UpsertInput): Promise<KskRecord | null> {
+  await ensureSchema();
+  if (useNeon) {
+    const rows = (await sql!`
+      UPDATE ksk_records
+      SET form_id = ${input.form_id},
+          child_name = ${input.child_name},
+          dob = ${input.dob},
+          mchat_score = ${input.mchat_score},
+          values = ${JSON.stringify(input.values)}::jsonb,
+          updated_at = now()
+      WHERE id = ${id}
+      RETURNING *;
+    `) as KskRecord[];
+    return rows[0] ?? null;
+  }
+  const rows = readLocal();
+  const idx = rows.findIndex((r) => r.id === id);
+  if (idx === -1) return null;
+  rows[idx] = { ...rows[idx], ...input, updated_at: new Date().toISOString() };
+  writeLocal(rows);
+  return rows[idx];
+}
+
+export async function deleteRecord(id: number): Promise<void> {
+  await ensureSchema();
+  if (useNeon) {
+    await sql!`DELETE FROM ksk_records WHERE id = ${id}`;
+    return;
+  }
+  writeLocal(readLocal().filter((r) => r.id !== id));
+}
+
+export function storageMode(): "neon" | "local" {
+  return useNeon ? "neon" : "local";
+}
