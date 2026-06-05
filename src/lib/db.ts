@@ -21,15 +21,6 @@ export interface KskRecord {
   updated_at: string;
 }
 
-export interface DbUser {
-  id: number;
-  username: string;
-  password_hash: string;
-  full_name: string;
-  role: "admin" | "user";
-  created_at: string;
-}
-
 const useNeon = !!process.env.DATABASE_URL;
 const sql = useNeon ? neon(process.env.DATABASE_URL!) : null;
 
@@ -53,16 +44,6 @@ export async function ensureSchema(): Promise<void> {
   `;
   // Cột created_by có thể chưa tồn tại nếu bảng được tạo từ phiên bản trước
   await sql!`ALTER TABLE ksk_records ADD COLUMN IF NOT EXISTS created_by TEXT;`;
-  await sql!`
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      username TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL,
-      full_name TEXT NOT NULL DEFAULT '',
-      role TEXT NOT NULL DEFAULT 'user',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    );
-  `;
   initialized = true;
 }
 
@@ -204,82 +185,4 @@ export async function deleteRecord(id: number): Promise<void> {
 
 export function storageMode(): "neon" | "local" {
   return useNeon ? "neon" : "local";
-}
-
-// ============================================================
-// USERS
-// ============================================================
-const usersFile = path.join(dataDir, "users.json");
-function readUsers(): DbUser[] {
-  try {
-    if (!fs.existsSync(usersFile)) return [];
-    return JSON.parse(fs.readFileSync(usersFile, "utf-8")) as DbUser[];
-  } catch {
-    return [];
-  }
-}
-function writeUsers(rows: DbUser[]): void {
-  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-  fs.writeFileSync(usersFile, JSON.stringify(rows, null, 2), "utf-8");
-}
-
-export async function countUsers(): Promise<number> {
-  await ensureSchema();
-  if (useNeon) {
-    const rows = (await sql!`SELECT COUNT(*)::int AS n FROM users`) as { n: number }[];
-    return rows[0]?.n ?? 0;
-  }
-  return readUsers().length;
-}
-
-export async function getUserByUsername(username: string): Promise<DbUser | null> {
-  await ensureSchema();
-  if (useNeon) {
-    const rows = (await sql!`SELECT * FROM users WHERE username = ${username}`) as DbUser[];
-    return rows[0] ?? null;
-  }
-  return readUsers().find((u) => u.username === username) ?? null;
-}
-
-export async function listUsers(): Promise<DbUser[]> {
-  await ensureSchema();
-  if (useNeon) {
-    return (await sql!`SELECT * FROM users ORDER BY id ASC`) as DbUser[];
-  }
-  return readUsers().sort((a, b) => a.id - b.id);
-}
-
-export async function createUser(input: {
-  username: string;
-  password_hash: string;
-  full_name: string;
-  role: "admin" | "user";
-}): Promise<DbUser> {
-  await ensureSchema();
-  if (useNeon) {
-    const rows = (await sql!`
-      INSERT INTO users (username, password_hash, full_name, role)
-      VALUES (${input.username}, ${input.password_hash}, ${input.full_name}, ${input.role})
-      RETURNING *;
-    `) as DbUser[];
-    return rows[0];
-  }
-  const rows = readUsers();
-  if (rows.some((u) => u.username === input.username)) {
-    throw new Error("Tên đăng nhập đã tồn tại");
-  }
-  const id = rows.reduce((m, r) => Math.max(m, r.id), 0) + 1;
-  const user: DbUser = { id, ...input, created_at: new Date().toISOString() };
-  rows.push(user);
-  writeUsers(rows);
-  return user;
-}
-
-export async function deleteUser(id: number): Promise<void> {
-  await ensureSchema();
-  if (useNeon) {
-    await sql!`DELETE FROM users WHERE id = ${id}`;
-    return;
-  }
-  writeUsers(readUsers().filter((u) => u.id !== id));
 }

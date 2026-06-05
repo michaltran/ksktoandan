@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     const header: string[] = ["ID", "Họ tên", "Ngày sinh"];
     if (form.id === "mau9") header.push("Điểm M-CHAT", "Phân loại nguy cơ");
     for (const f of fields) header.push(f.label);
-    header.push("Người nhập", "Ngày tạo");
+    header.push("Ngày tạo");
     ws.addRow(header);
     ws.getRow(1).font = { bold: true };
     ws.getRow(1).alignment = { vertical: "middle", wrapText: true };
@@ -56,7 +56,6 @@ export async function GET(req: NextRequest) {
         line.push(score, phan);
       }
       for (const f of fields) line.push(cellValue(v[f.key]));
-      line.push(r.created_by ?? "");
       line.push(r.created_at ? new Date(r.created_at).toLocaleString("vi-VN") : "");
       ws.addRow(line);
     }

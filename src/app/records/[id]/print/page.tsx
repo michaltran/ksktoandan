@@ -58,7 +58,6 @@ export default async function PrintRecordPage({ params }: { params: { id: string
       ))}
 
       <div className="mt-6 text-sm text-slate-500">
-        <p>Người nhập: {rec.created_by || "—"}</p>
         <p>Ngày tạo: {rec.created_at ? new Date(rec.created_at).toLocaleString("vi-VN") : "—"}</p>
       </div>
 

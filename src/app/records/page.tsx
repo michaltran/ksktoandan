@@ -83,7 +83,6 @@ export default async function RecordsPage({
                 <th className="text-left px-4 py-2 font-medium">Họ tên</th>
                 <th className="text-left px-4 py-2 font-medium">Ngày sinh</th>
                 <th className="text-left px-4 py-2 font-medium">M-CHAT</th>
-                <th className="text-left px-4 py-2 font-medium">Người nhập</th>
                 <th className="text-left px-4 py-2 font-medium">Ngày tạo</th>
                 <th className="px-4 py-2"></th>
               </tr>
@@ -104,7 +103,6 @@ export default async function RecordsPage({
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-slate-500">{r.created_by || "—"}</td>
                   <td className="px-4 py-2 text-slate-500">
                     {r.created_at ? new Date(r.created_at).toLocaleString("vi-VN") : "—"}
                   </td>

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listRecords, createRecord } from "@/lib/db";
 import { getForm, scoreMchat } from "@/lib/forms/definitions";
-import { getCurrentUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -27,9 +26,7 @@ export async function POST(req: NextRequest) {
     const dob = values["hc_ngaysinh"] ? String(values["hc_ngaysinh"]) : null;
     const mchat_score = form_id === "mau9" ? scoreMchat(values) : null;
 
-    const me = await getCurrentUser();
-    const created_by = me ? me.full_name || me.username : null;
-    const rec = await createRecord({ form_id, child_name, dob, mchat_score, values, created_by });
+    const rec = await createRecord({ form_id, child_name, dob, mchat_score, values });
     return NextResponse.json({ ok: true, record: rec });
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
