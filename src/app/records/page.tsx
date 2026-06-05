@@ -8,10 +8,11 @@ export const dynamic = "force-dynamic";
 export default async function RecordsPage({
   searchParams,
 }: {
-  searchParams: { form?: string };
+  searchParams: { form?: string; q?: string };
 }) {
   const formId = searchParams.form;
-  const records = await listRecords(formId);
+  const q = searchParams.q ?? "";
+  const records = await listRecords(formId, q);
 
   const exportHref = formId ? `/api/export?form=${formId}` : "/api/export";
 
@@ -23,6 +24,29 @@ export default async function RecordsPage({
           ⬇️ Xuất Excel{formId ? ` (${getForm(formId)?.code})` : " (tất cả)"}
         </a>
       </div>
+
+      {/* Tìm kiếm theo tên */}
+      <form method="get" className="flex gap-2 mb-3">
+        {formId && <input type="hidden" name="form" value={formId} />}
+        <input
+          type="text"
+          name="q"
+          defaultValue={q}
+          placeholder="Tìm theo họ tên trẻ..."
+          className="text-input max-w-xs"
+        />
+        <button type="submit" className="px-4 py-2 rounded-md bg-brand-600 text-white text-sm font-medium">
+          Tìm
+        </button>
+        {q && (
+          <Link
+            href={formId ? `/records?form=${formId}` : "/records"}
+            className="px-4 py-2 rounded-md border border-slate-300 text-sm"
+          >
+            Xóa lọc
+          </Link>
+        )}
+      </form>
 
       {/* Bộ lọc theo mẫu */}
       <div className="flex flex-wrap gap-2 mb-4">
@@ -59,6 +83,7 @@ export default async function RecordsPage({
                 <th className="text-left px-4 py-2 font-medium">Họ tên</th>
                 <th className="text-left px-4 py-2 font-medium">Ngày sinh</th>
                 <th className="text-left px-4 py-2 font-medium">M-CHAT</th>
+                <th className="text-left px-4 py-2 font-medium">Người nhập</th>
                 <th className="text-left px-4 py-2 font-medium">Ngày tạo</th>
                 <th className="px-4 py-2"></th>
               </tr>
@@ -79,10 +104,14 @@ export default async function RecordsPage({
                       </span>
                     )}
                   </td>
+                  <td className="px-4 py-2 text-slate-500">{r.created_by || "—"}</td>
                   <td className="px-4 py-2 text-slate-500">
                     {r.created_at ? new Date(r.created_at).toLocaleString("vi-VN") : "—"}
                   </td>
                   <td className="px-4 py-2 text-right whitespace-nowrap">
+                    <Link href={`/records/${r.id}/print`} className="text-slate-600 hover:underline mr-3">
+                      In
+                    </Link>
                     <Link href={`/records/${r.id}`} className="text-brand-600 hover:underline mr-3">
                       Sửa
                     </Link>

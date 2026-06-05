@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { FormDef, Field, Section, RecordValues } from "@/lib/forms/schema";
 
@@ -18,7 +18,6 @@ function buildDefaults(form: FormDef): RecordValues {
   return v;
 }
 
-
 export default function FormRenderer({
   form,
   initialValues,
@@ -33,12 +32,21 @@ export default function FormRenderer({
   const [values, setValues] = useState<RecordValues>({ ...defaults, ...(initialValues ?? {}) });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   function set(key: string, val: string | string[] | boolean | null) {
     setValues((prev) => ({ ...prev, [key]: val }));
   }
 
-  // M-CHAT điểm trực tiếp
+  // Chuyển focus sang trường nhập kế tiếp (theo thứ tự xuất hiện trên trang)
+  function focusNext(el: HTMLElement) {
+    const root = containerRef.current;
+    if (!root) return;
+    const nodes = Array.from(root.querySelectorAll<HTMLElement>("[data-kbd]"));
+    const idx = nodes.indexOf(el);
+    if (idx >= 0 && idx + 1 < nodes.length) nodes[idx + 1].focus();
+  }
+
   const mchatScore = useMemo(() => {
     if (form.id !== "mau9") return null;
     let score = 0;
@@ -83,12 +91,19 @@ export default function FormRenderer({
   }
 
   return (
-    <div className="pb-24">
-      <div className="mb-4">
+    <div className="pb-24" ref={containerRef}>
+      <div className="mb-3">
         <h1 className="text-xl font-bold text-slate-900">
           {form.code} — {form.name}
         </h1>
         <p className="text-sm text-slate-500">Độ tuổi: {form.ageRange}</p>
+      </div>
+
+      {/* Hướng dẫn phím tắt để nhập nhanh */}
+      <div className="mb-4 text-xs bg-brand-50 border border-brand-100 text-brand-700 rounded-md px-3 py-2">
+        ⌨️ <strong>Nhập nhanh bằng bàn phím:</strong> <kbd>Tab</kbd> chuyển trường ·{" "}
+        ở ô lựa chọn bấm <kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd> để chọn (hoặc <kbd>C</kbd>=Có, <kbd>K</kbd>=Không) — tự
+        nhảy sang trường kế · <kbd>←</kbd>/<kbd>→</kbd> đổi lựa chọn · <kbd>Enter</kbd> sang ô tiếp theo.
       </div>
 
       {form.sections.map((section) => (
@@ -98,6 +113,7 @@ export default function FormRenderer({
           values={values}
           set={set}
           onFill={fillSection}
+          focusNext={focusNext}
         />
       ))}
 
@@ -109,7 +125,8 @@ export default function FormRenderer({
               <span className="font-medium">Tổng điểm M-CHAT: </span>
               <span
                 className={
-                  "font-bold " + (mchatScore >= 3 ? "text-rose-600" : mchatScore >= 1 ? "text-amber-600" : "text-emerald-600")
+                  "font-bold " +
+                  (mchatScore >= 3 ? "text-rose-600" : mchatScore >= 1 ? "text-amber-600" : "text-emerald-600")
                 }
               >
                 {mchatScore}
@@ -147,11 +164,13 @@ function SectionView({
   values,
   set,
   onFill,
+  focusNext,
 }: {
   section: Section;
   values: RecordValues;
   set: (k: string, v: string | string[] | boolean | null) => void;
   onFill: (s: Section, mode: "normal" | "yes") => void;
+  focusNext: (el: HTMLElement) => void;
 }) {
   const colClass =
     section.columns === 3
@@ -178,7 +197,7 @@ function SectionView({
       </div>
       <div className={`grid ${colClass} gap-x-6 gap-y-4`}>
         {section.fields.map((f) => (
-          <FieldView key={f.key} field={f} value={values[f.key]} set={set} />
+          <FieldView key={f.key} field={f} value={values[f.key]} set={set} focusNext={focusNext} />
         ))}
       </div>
     </section>
@@ -189,32 +208,42 @@ function FieldView({
   field,
   value,
   set,
+  focusNext,
 }: {
   field: Field;
   value: string | string[] | boolean | null | undefined;
   set: (k: string, v: string | string[] | boolean | null) => void;
+  focusNext: (el: HTMLElement) => void;
 }) {
-  const wide = field.kind === "textarea" || field.kind === "yesno";
-
+  // ---- text ----
   if (field.kind === "text") {
     return (
-      <div className={wide ? "md:col-span-2" : ""}>
+      <div>
         <label className="field-label">{field.label}</label>
         <input
+          data-kbd
           className="text-input"
           value={(value as string) ?? ""}
           placeholder={field.placeholder}
           onChange={(e) => set(field.key, e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              focusNext(e.currentTarget);
+            }
+          }}
         />
       </div>
     );
   }
 
+  // ---- textarea ----
   if (field.kind === "textarea") {
     return (
       <div className="md:col-span-2">
         <label className="field-label">{field.label}</label>
         <textarea
+          data-kbd
           className="text-input min-h-[60px]"
           value={(value as string) ?? ""}
           placeholder={field.placeholder}
@@ -224,6 +253,7 @@ function FieldView({
     );
   }
 
+  // ---- number ----
   if (field.kind === "number") {
     return (
       <div>
@@ -231,21 +261,30 @@ function FieldView({
           {field.label} {field.unit && <span className="text-slate-400">({field.unit})</span>}
         </label>
         <input
+          data-kbd
           type="number"
           step={field.step ?? "any"}
           className="text-input"
           value={(value as string) ?? ""}
           placeholder={field.placeholder}
           onChange={(e) => set(field.key, e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              focusNext(e.currentTarget);
+            }
+          }}
         />
       </div>
     );
   }
 
+  // ---- checkbox ----
   if (field.kind === "checkbox") {
     return (
       <label className="flex items-center gap-2 cursor-pointer">
         <input
+          data-kbd
           type="checkbox"
           checked={!!value}
           onChange={(e) => set(field.key, e.target.checked)}
@@ -256,25 +295,45 @@ function FieldView({
     );
   }
 
+  // ---- checklist (chọn nhiều) ----
   if (field.kind === "checklist") {
     const arr = Array.isArray(value) ? (value as string[]) : [];
+    const toggle = (opt: string) => {
+      const next = arr.includes(opt) ? arr.filter((x) => x !== opt) : [...arr, opt];
+      set(field.key, next);
+    };
     return (
       <div className="md:col-span-2">
-        <label className="field-label">{field.label}</label>
-        <div className="flex flex-wrap gap-2">
-          {field.options.map((opt) => {
+        <label className="field-label">
+          {field.label} <span className="text-slate-400 font-normal">(phím 1-{field.options.length} để chọn)</span>
+        </label>
+        <div
+          data-kbd
+          tabIndex={0}
+          className="flex flex-wrap gap-2 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-400 p-0.5"
+          onKeyDown={(e) => {
+            const n = parseInt(e.key, 10);
+            if (!isNaN(n) && n >= 1 && n <= field.options.length) {
+              e.preventDefault();
+              toggle(field.options[n - 1]);
+            } else if (e.key === "Enter") {
+              e.preventDefault();
+              focusNext(e.currentTarget);
+            }
+          }}
+        >
+          {field.options.map((opt, i) => {
             const active = arr.includes(opt);
             return (
               <button
                 key={opt}
                 type="button"
+                tabIndex={-1}
                 data-active={active}
                 className="seg-btn"
-                onClick={() => {
-                  const next = active ? arr.filter((x) => x !== opt) : [...arr, opt];
-                  set(field.key, next);
-                }}
+                onClick={() => toggle(opt)}
               >
+                <span className="text-slate-400 mr-1">{i + 1}</span>
                 {opt}
               </button>
             );
@@ -284,27 +343,80 @@ function FieldView({
     );
   }
 
-  // Còn lại: radio + yesno -> segmented buttons
+  // ---- radio + yesno -> nhóm nút chọn, điều khiển bằng bàn phím ----
   if (field.kind !== "radio" && field.kind !== "yesno") return null;
   const options = field.kind === "yesno" ? ["Có", "Không"] : field.options;
-  // Giá trị "tốt": yesno -> "Có"; radio -> giá trị normal nếu có
   const goodValue = field.kind === "yesno" ? "Có" : field.normal;
+  const curIndex = options.indexOf((value as string) ?? "");
+
+  const selectAndAdvance = (opt: string, el: HTMLElement) => {
+    set(field.key, value === opt ? "" : opt);
+    focusNext(el);
+  };
+
   return (
     <div className={field.kind === "yesno" ? "md:col-span-2" : ""}>
-      <label className="field-label">{field.label}</label>
-      <div className="flex flex-wrap gap-2">
-        {options.map((opt) => {
+      <label className="field-label">
+        {field.label}{" "}
+        <span className="text-slate-400 font-normal">{field.kind === "yesno" ? "(C/K)" : `(1-${options.length})`}</span>
+      </label>
+      <div
+        data-kbd
+        tabIndex={0}
+        className="flex flex-wrap gap-2 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-400 p-0.5"
+        onKeyDown={(e) => {
+          const el = e.currentTarget;
+          // Mũi tên: duyệt lựa chọn (không nhảy trường)
+          if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+            e.preventDefault();
+            const ni = curIndex < 0 ? 0 : Math.min(curIndex + 1, options.length - 1);
+            set(field.key, options[ni]);
+            return;
+          }
+          if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+            e.preventDefault();
+            const ni = curIndex <= 0 ? 0 : curIndex - 1;
+            set(field.key, options[ni]);
+            return;
+          }
+          // Phím tắt Có/Không
+          if (field.kind === "yesno" && (e.key === "c" || e.key === "C")) {
+            e.preventDefault();
+            selectAndAdvance("Có", el);
+            return;
+          }
+          if (field.kind === "yesno" && (e.key === "k" || e.key === "K")) {
+            e.preventDefault();
+            selectAndAdvance("Không", el);
+            return;
+          }
+          // Phím số chọn lựa chọn thứ N
+          const n = parseInt(e.key, 10);
+          if (!isNaN(n) && n >= 1 && n <= options.length) {
+            e.preventDefault();
+            selectAndAdvance(options[n - 1], el);
+            return;
+          }
+          if (e.key === "Enter") {
+            e.preventDefault();
+            focusNext(el);
+          }
+        }}
+      >
+        {options.map((opt, i) => {
           const active = value === opt;
           const tone = active ? (goodValue ? (opt === goodValue ? "good" : "bad") : undefined) : undefined;
           return (
             <button
               key={opt}
               type="button"
+              tabIndex={-1}
               data-active={active}
               data-tone={tone}
               className="seg-btn"
               onClick={() => set(field.key, value === opt ? "" : opt)}
             >
+              <span className={active ? "opacity-70 mr-1" : "text-slate-400 mr-1"}>{i + 1}</span>
               {opt}
             </button>
           );

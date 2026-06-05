@@ -33,3 +33,17 @@ body {
 .text-input {
   @apply w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none;
 }
+
+kbd {
+  @apply inline-block px-1.5 py-0.5 text-[11px] font-mono bg-white border border-brand-200 rounded shadow-sm text-brand-700;
+}
+
+/* In ấn: ẩn các nút, mở rộng nội dung */
+@media print {
+  body {
+    @apply bg-white;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+}
