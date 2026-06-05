@@ -8,6 +8,7 @@ export type FieldKind =
   | "textarea" // ô chữ nhiều dòng (ghi chú, mô tả, tư vấn)
   | "number" // số (nhiệt độ, cân nặng...)
   | "radio" // chọn 1 trong nhiều (vd: Bình thường / Không bình thường)
+  | "select" // danh sách thả xuống (vd: phường/xã địa giới)
   | "checkbox" // 1 ô tick độc lập (boolean)
   | "checklist" // chọn nhiều trong danh sách (vd: các dấu hiệu dinh dưỡng)
   | "yesno"; // Có / Không (dùng cho mốc phát triển, tiêm chủng, M-CHAT)
@@ -22,6 +23,14 @@ export interface BaseField {
 export interface TextField extends BaseField {
   kind: "text" | "textarea";
   placeholder?: string;
+  default?: string; // giá trị điền sẵn
+  readOnly?: boolean; // chỉ đọc (vd: tỉnh/thành cố định)
+}
+
+export interface SelectField extends BaseField {
+  kind: "select";
+  options: string[];
+  default?: string;
 }
 
 export interface NumberField extends BaseField {
@@ -56,6 +65,7 @@ export type Field =
   | TextField
   | NumberField
   | RadioField
+  | SelectField
   | CheckboxField
   | ChecklistField
   | YesNoField;

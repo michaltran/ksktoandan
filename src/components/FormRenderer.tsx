@@ -11,6 +11,8 @@ function buildDefaults(form: FormDef): RecordValues {
   for (const s of form.sections) {
     for (const f of s.fields) {
       if (f.kind === "radio" && f.normal) v[f.key] = f.normal;
+      else if (f.kind === "select" && f.default) v[f.key] = f.default;
+      else if ((f.kind === "text" || f.kind === "textarea") && f.default) v[f.key] = f.default;
       else if (f.kind === "checklist") v[f.key] = [];
       else if (f.kind === "checkbox") v[f.key] = false;
       else v[f.key] = "";
@@ -281,6 +283,34 @@ function FieldView({
   set: (k: string, v: string | string[] | boolean | null) => void;
   focusNext: (el: HTMLElement) => void;
 }) {
+  // ---- select (dropdown) ----
+  if (field.kind === "select") {
+    return (
+      <div>
+        <label className="field-label">{field.label}</label>
+        <select
+          data-kbd
+          className="text-input"
+          value={(value as string) ?? ""}
+          onChange={(e) => set(field.key, e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              focusNext(e.currentTarget);
+            }
+          }}
+        >
+          <option value="">-- Chọn --</option>
+          {field.options.map((opt) => (
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+
   // ---- text ----
   if (field.kind === "text") {
     return (
@@ -288,9 +318,10 @@ function FieldView({
         <label className="field-label">{field.label}</label>
         <input
           data-kbd
-          className="text-input"
+          className={"text-input" + (field.readOnly ? " bg-slate-100 text-slate-500" : "")}
           value={(value as string) ?? ""}
           placeholder={field.placeholder}
+          readOnly={field.readOnly}
           onChange={(e) => set(field.key, e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {

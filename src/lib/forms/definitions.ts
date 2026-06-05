@@ -11,6 +11,7 @@ import {
   vaccines,
   counsel,
   conclusion,
+  diaGioi,
 } from "./common";
 import { examMau1, examMau2, examStandard, examMau8 } from "./exams";
 
@@ -399,7 +400,7 @@ const mau9: FormDef = {
         { key: "hc_gioitinh", label: "Giới tính", kind: "radio", options: ["Nam", "Nữ"] },
         { key: "hc_ngaysinh", label: "Ngày sinh", kind: "text", placeholder: "dd/mm/yyyy" },
         { key: "mchat_tuoi", label: "Tuổi", kind: "text" },
-        { key: "hc_noio", label: "Địa chỉ", kind: "text" },
+        ...diaGioi(),
         { key: "mchat_ngaydanhgia", label: "Ngày đánh giá", kind: "text", placeholder: "dd/mm/yyyy" },
         {
           key: "mchat_nguoidanhgia",

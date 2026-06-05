@@ -31,6 +31,31 @@ export function note(key: string, label = "Ghi chú thêm"): Field {
 }
 
 // =========================================================
+// ĐỊA GIỚI HÀNH CHÍNH (Nơi ở)
+// Tỉnh/Thành & Phường/Xã chọn sẵn (dropdown để mở rộng sau);
+// Thôn/Tổ/địa chỉ chi tiết nhập tay.
+// =========================================================
+export function diaGioi(): Field[] {
+  return [
+    {
+      key: "hc_tinh",
+      label: "Tỉnh/Thành phố",
+      kind: "select",
+      options: ["Thành phố Đà Nẵng"],
+      default: "Thành phố Đà Nẵng",
+    },
+    {
+      key: "hc_phuong",
+      label: "Phường/Xã",
+      kind: "select",
+      options: ["Hoà Khánh"],
+      default: "Hoà Khánh",
+    },
+    { key: "hc_thon", label: "Thôn/Tổ/Địa chỉ chi tiết", kind: "text" },
+  ];
+}
+
+// =========================================================
 // HÀNH CHÍNH
 // =========================================================
 function adminCore(): Field[] {
@@ -41,7 +66,7 @@ function adminCore(): Field[] {
     { key: "hc_tuanthai", label: "Tuần thai khi sinh", kind: "text", placeholder: "vd: 38 tuần (hoặc KB)" },
     { key: "hc_gioitinh", label: "Giới tính", kind: "radio", options: ["Nam", "Nữ"] },
     { key: "hc_dantoc", label: "Dân tộc", kind: "text" },
-    { key: "hc_noio", label: "Nơi ở", kind: "text" },
+    ...diaGioi(),
     { key: "hc_nguoidicung", label: "Họ tên người đi cùng trẻ", kind: "text" },
     {
       key: "hc_moiquanhe",
@@ -81,7 +106,7 @@ export function adminSchool(): Section {
       { key: "hc_tuanthai", label: "Tuần thai khi sinh", kind: "text", placeholder: "vd: 38 tuần (hoặc KB)" },
       { key: "hc_gioitinh", label: "Giới tính", kind: "radio", options: ["Nam", "Nữ"] },
       { key: "hc_dantoc", label: "Dân tộc", kind: "text" },
-      { key: "hc_noio", label: "Nơi ở", kind: "text" },
+      ...diaGioi(),
       { key: "hc_truonglop", label: "Trường lớp (nếu có)", kind: "text" },
       { key: "hc_nguoidicung", label: "Họ tên người đi cùng trẻ", kind: "text" },
       { key: "hc_sodienthoai", label: "Số điện thoại", kind: "text" },
